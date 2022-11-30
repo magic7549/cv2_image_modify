@@ -1,7 +1,9 @@
 import cv2
+import numpy as np
 from tkinter import *
 from tkinter import filedialog
 from PIL import Image
+from PIL import ImageTk
 
 def create_new_file():
     print("create new file!!")
@@ -11,16 +13,30 @@ def image_load():   # 이미지 불러오기
         filetypes=(("모든 파일", "*.*"), ("PNG 파일", "*.png"), ("JPG 파일", "*.jpg")),
         initialdir="C:/")
 
-    cv2_img = cv2.imread(file)
+    img_array = np.fromfile(file, np.uint8)
+    src = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+    src = image_size_control(src)
 
-    global photo
-    #photo = PhotoImage(file=file, width=1000, height=790)
-    photo = PhotoImage(file=file)
+    img = cv2.cvtColor(src, cv2.COLOR_BGR2RGB)
 
-    
+    img = Image.fromarray(img)
+    imgtk = ImageTk.PhotoImage(image=img)
 
-    global canvas
-    canvas.create_image([0, 0], image=photo)
+    global label_image
+    label_image.config(image=imgtk)
+    label_image.image = imgtk
+
+def image_size_control(src):
+    height, width, _ = src.shape
+
+    if (width > height):
+        adj_width = 1000 / width
+        dst = cv2.resize(src, dsize=(0, 0), fx=adj_width, fy=adj_width, interpolation=cv2.INTER_LINEAR)
+    else:
+        adj_height = 790 / height
+        dst = cv2.resize(src, dsize=(0, 0), fx=adj_height, fy=adj_height, interpolation=cv2.INTER_LINEAR)
+
+    return dst
 
     
 
@@ -53,8 +69,9 @@ Button(frame_left, text="test", padx=5, pady=5, width=6, height=2).pack()
 frame_image = Frame(root)
 frame_image.pack(side="right", fill="both", expand=True)
 
-canvas = Canvas(frame_image, background="yellow", width=1000, height=790)
-canvas.pack()
+label_image = Label(frame_image)
+label_image.pack()
+
 # ==========================================================
 
 root.mainloop()
