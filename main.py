@@ -290,6 +290,116 @@ def noise_remove(x):
     show_image(result)
 
 
+# 리퀴파이 도구
+def liquify():
+    win_title = "Esc : Apply"
+    half = 50 
+    isDragging = False 
+    cx1, cy1 = 0, 0
+
+    def liquify_apply(img, cx1, cy1, cx2, cy2):
+        x, y, w, h = cx1-half, cy1-half, half*2, half*2
+
+        roi = img[y:y+h, x:x+w].copy()
+        out = roi.copy()
+
+        offset_cx1,offset_cy1 = cx1-x, cy1-y
+        offset_cx2,offset_cy2 = cx2-x, cy2-y
+        
+        tri1 = [[ (0, 0), (w, 0), (offset_cx1, offset_cy1)],
+                [ [0, 0], [0, h], [offset_cx1, offset_cy1]],
+                [ [w, 0], [offset_cx1, offset_cy1], [w, h]],
+                [ [0, h], [offset_cx1, offset_cy1], [w, h]]]
+
+        tri2 = [[ [0, 0], [w, 0], [offset_cx2, offset_cy2]],
+                [ [0, 0], [0, h], [offset_cx2, offset_cy2]],
+                [ [w, 0], [offset_cx2, offset_cy2], [w, h]],
+                [ [0, h], [offset_cx2, offset_cy2], [w, h]]]
+
+        
+        for i in range(4):
+            matrix = cv2.getAffineTransform(np.float32(tri1[i]), np.float32(tri2[i]))
+            warped = cv2.warpAffine(roi.copy(), matrix, (w, h), None, flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT_101)
+
+            mask = np.zeros((h, w), dtype = np.uint8)
+            cv2.fillConvexPoly(mask, np.int32(tri2[i]), (255,255,255))
+
+            warped = cv2.bitwise_and(warped, warped, mask=mask)
+            out = cv2.bitwise_and(out, out, mask=cv2.bitwise_not(mask))
+            out = out + warped
+
+        img[y:y+h, x:x+w] = out
+        return img 
+
+    def onMouse(event,x,y,flags,param):
+        nonlocal cx1, cy1, isDragging, img  
+
+        if event == cv2.EVENT_MOUSEMOVE:  
+            if not isDragging :
+                img_draw = img.copy()
+
+                cv2.rectangle(img_draw, (x-half, y-half), (x+half, y+half), (0,255,0)) 
+                cv2.imshow(win_title, img_draw)
+        elif event == cv2.EVENT_LBUTTONDOWN :   
+            isDragging = True 
+            cx1, cy1 = x, y
+        elif event == cv2.EVENT_LBUTTONUP :
+            if isDragging:
+                isDragging = False
+
+                liquify_apply(img, cx1, cy1, x, y)    
+                cv2.imshow(win_title, img)
+
+    img = image_load()
+
+    cv2.namedWindow(win_title)
+    cv2.setMouseCallback(win_title, onMouse) 
+    cv2.imshow(win_title, img)
+
+    while True:
+        key = cv2.waitKey(1)
+        if key & 0xFF == 27:
+            break
+
+    cv2.destroyAllWindows()
+    show_image(img)
+
+
+# 노멀라이즈
+def normalize():
+    global cv_image
+
+    img_norm = cv2.normalize(cv_image, None, 0, 255, cv2.NORM_MINMAX)
+    show_image(img_norm)
+
+
+# 노멀라이즈
+def equalize():
+    global cv_image
+
+    img_yuv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2YUV)
+    img_yuv[:,:,0] = cv2.equalizeHist(img_yuv[:,:,0])
+    img = cv2.cvtColor(img_yuv, cv2.COLOR_YUV2BGR)
+    
+    show_image(img)
+
+
+# CLAHE
+def clahe():
+    global cv_image
+
+    img_yuv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2YUV)
+
+    img_eq = img_yuv.copy()
+    img_eq[:,:,0] = cv2.equalizeHist(img_eq[:,:,0])
+    img_eq = cv2.cvtColor(img_eq, cv2.COLOR_YUV2BGR)
+
+    img_clahe = img_yuv.copy()
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+    img_clahe[:,:,0] = clahe.apply(img_clahe[:,:,0])
+    img_clahe = cv2.cvtColor(img_clahe, cv2.COLOR_YUV2BGR)
+
+    show_image(img_clahe)
 
 
 
@@ -320,6 +430,10 @@ menu_transform.add_command(label="스케치 효과", command=sketch)
 menu_transform.add_separator()
 menu_transform.add_command(label="노이즈 제거(열림)", command=lambda: noise_remove(0))
 menu_transform.add_command(label="노이즈 제거(닫힘)", command=lambda: noise_remove(1))
+menu_transform.add_separator()
+menu_transform.add_command(label="노멀라이즈", command=normalize)
+menu_transform.add_command(label="이퀄라이즈", command=equalize)
+menu_transform.add_command(label="CLAHE", command=clahe)
 
 menu.add_cascade(label="File", menu=menu_file)
 menu.add_cascade(label="Transform", menu=menu_transform)
@@ -335,6 +449,7 @@ Button(frame_left, text="배경 제거", padx=5, pady=5, width=6, height=2, comm
 Button(frame_left, text="문서 스캔", padx=5, pady=5, width=6, height=2, command=paper_scan).pack()
 Button(frame_left, text="코너 검출", padx=5, pady=5, width=6, height=2, command=corner_goodFeature).pack()
 Button(frame_left, text="디스크립터\n추출", padx=5, pady=5, width=6, height=2, command=orb_desc).pack()
+Button(frame_left, text="리퀴파이", padx=5, pady=5, width=6, height=2, command=liquify).pack()
 
 # ==========================================================
 # 메인 프레임
